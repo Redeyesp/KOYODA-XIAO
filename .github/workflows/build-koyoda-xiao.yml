@@ -23,17 +23,36 @@ jobs:
       - name: Show baseline
         shell: bash
         run: |
+          set -euo pipefail
+
           echo "KOYODA-XIAO M0.1"
           echo "Board: waveshare/esp32-s3-touch-amoled-1.75"
           echo "Locale: th-TH"
           echo "Wake word: disabled"
+
+          echo "IDF_PATH=${IDF_PATH:-<unset>}"
+          test -n "${IDF_PATH:-}"
+          test -f "$IDF_PATH/export.sh"
+
+          # The espressif/idf container contains ESP-IDF, but GitHub Actions
+          # does not automatically source the container's IDF environment in
+          # each run step.  Export it explicitly before calling idf.py.
+          source "$IDF_PATH/export.sh"
+
           idf.py --version
           python --version
 
       - name: Build exact KOYODA hardware
         shell: bash
         run: |
+          set -euo pipefail
+
+          test -n "${IDF_PATH:-}"
+          test -f "$IDF_PATH/export.sh"
           source "$IDF_PATH/export.sh"
+
+          idf.py --version
+
           python scripts/build.py waveshare/esp32-s3-touch-amoled-1.75 \
             --name esp32-s3-touch-amoled-1.75 \
             --language th-TH \
