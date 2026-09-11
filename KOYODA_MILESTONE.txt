@@ -1,0 +1,3 @@
+KOYODA-XIAO M0.1
+Purpose: exact-board XiaoZhi build baseline.
+Do not port KOYODA UI until build + hardware baseline pass.

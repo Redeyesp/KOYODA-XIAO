@@ -1,0 +1,54 @@
+name: Build KOYODA-XIAO
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-koyoda-xiaozhi:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.0.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show baseline
+        shell: bash
+        run: |
+          echo "KOYODA-XIAO M0.1"
+          echo "Board: waveshare/esp32-s3-touch-amoled-1.75"
+          echo "Locale: th-TH"
+          echo "Wake word: disabled"
+          idf.py --version
+          python --version
+
+      - name: Build exact KOYODA hardware
+        shell: bash
+        run: |
+          source "$IDF_PATH/export.sh"
+          python scripts/build.py waveshare/esp32-s3-touch-amoled-1.75 \
+            --name esp32-s3-touch-amoled-1.75 \
+            --language th-TH \
+            --wake-word disabled
+
+      - name: Verify merged firmware
+        shell: bash
+        run: |
+          test -f build/merged-binary.bin
+          ls -lh build/merged-binary.bin
+          sha256sum build/merged-binary.bin
+
+      - name: Upload merged firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: KOYODA-XIAO-M0.1-${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
