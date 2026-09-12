@@ -110,14 +110,29 @@ class CustomLcdDisplay : public SpiLcdDisplay {
 private:
     lv_obj_t* koyoda_idle_layer_ = nullptr;
 
+    /*
+     * Stock XiaoZhi root-screen style is preserved so entering/leaving KOYODA
+     * idle is reversible. This is important for Wi-Fi/config/system screens.
+     */
+    lv_color_t stock_screen_bg_color_ = lv_color_black();
+    lv_opa_t stock_screen_bg_opa_ = LV_OPA_COVER;
+    bool stock_screen_style_saved_ = false;
+
     static void touch_zone_event_cb(lv_event_t* e) {
-        if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+        /*
+         * M1.1:
+         * Use PRESSED instead of CLICKED so the orientation probe logs at the
+         * first touch-down event rather than waiting for release/click
+         * qualification.
+         */
+        if (lv_event_get_code(e) != LV_EVENT_PRESSED) {
             return;
         }
 
         const char* zone =
             static_cast<const char*>(lv_event_get_user_data(e));
-        ESP_LOGI(TAG, "M1 TOUCH logical-zone=%s", zone ? zone : "UNKNOWN");
+        ESP_LOGI(TAG, "M1.1 TOUCH pressed logical-zone=%s",
+                 zone ? zone : "UNKNOWN");
     }
 
     static lv_obj_t* create_touch_zone(lv_obj_t* parent,
@@ -139,7 +154,7 @@ private:
 
         lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(zone, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(zone, touch_zone_event_cb, LV_EVENT_CLICKED,
+        lv_obj_add_event_cb(zone, touch_zone_event_cb, LV_EVENT_PRESSED,
                             const_cast<char*>(zone_name));
         return zone;
     }
@@ -196,6 +211,17 @@ public:
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
 
         /*
+         * Save the stock XiaoZhi screen background before KOYODA adds its own
+         * black idle surface. This lets Wi-Fi/system UI return exactly.
+         */
+        lv_obj_t* screen = lv_screen_active();
+        stock_screen_bg_color_ =
+            lv_obj_get_style_bg_color(screen, LV_PART_MAIN);
+        stock_screen_bg_opa_ =
+            lv_obj_get_style_bg_opa(screen, LV_PART_MAIN);
+        stock_screen_style_saved_ = true;
+
+        /*
          * M1 UI arbitration
          * -----------------
          * KOYODA idle is a dedicated full-screen layer created above XiaoZhi's
@@ -209,10 +235,17 @@ public:
          *
          * This prevents the Wi-Fi page and KOYODA face from stacking.
          */
-        lv_obj_t* screen = lv_screen_active();
+        /*
+         * M1.1 white-edge cleanup:
+         *
+         * The face itself remains exactly 466x466 at physical logical (0,0),
+         * but its black parent extends 2 px past every edge. This prevents a
+         * one-pixel/rounding seam from exposing XiaoZhi's light background at
+         * the left/bottom after LVGL rotation.
+         */
         koyoda_idle_layer_ = lv_obj_create(screen);
-        lv_obj_set_pos(koyoda_idle_layer_, 0, 0);
-        lv_obj_set_size(koyoda_idle_layer_, 466, 466);
+        lv_obj_set_pos(koyoda_idle_layer_, -2, -2);
+        lv_obj_set_size(koyoda_idle_layer_, 470, 470);
         lv_obj_set_style_bg_color(koyoda_idle_layer_, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(koyoda_idle_layer_, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(koyoda_idle_layer_, 0, 0);
@@ -224,7 +257,9 @@ public:
 
         lv_obj_t* idle_img = lv_image_create(koyoda_idle_layer_);
         lv_image_set_src(idle_img, &koyoda_idle_image);
-        lv_obj_set_pos(idle_img, 0, 0);
+
+        // Parent starts at (-2,-2), so (2,2) keeps the face at screen (0,0).
+        lv_obj_set_pos(idle_img, 2, 2);
         lv_obj_clear_flag(idle_img, LV_OBJ_FLAG_SCROLLABLE);
 
         /*
@@ -237,16 +272,17 @@ public:
          * This finally gives us a deterministic way to verify touch mapping
          * after the 270-degree display rotation.
          */
-        create_touch_zone(koyoda_idle_layer_,   0,   0, 110, 110, "TOP_LEFT");
-        create_touch_zone(koyoda_idle_layer_, 356,   0, 110, 110, "TOP_RIGHT");
-        create_touch_zone(koyoda_idle_layer_,   0, 356, 110, 110, "BOTTOM_LEFT");
-        create_touch_zone(koyoda_idle_layer_, 356, 356, 110, 110, "BOTTOM_RIGHT");
+        // +2 compensates for the overscan parent's (-2,-2) position.
+        create_touch_zone(koyoda_idle_layer_,   2,   2, 110, 110, "TOP_LEFT");
+        create_touch_zone(koyoda_idle_layer_, 358,   2, 110, 110, "TOP_RIGHT");
+        create_touch_zone(koyoda_idle_layer_,   2, 358, 110, 110, "BOTTOM_LEFT");
+        create_touch_zone(koyoda_idle_layer_, 358, 358, 110, 110, "BOTTOM_RIGHT");
 
         // Critical: Wi-Fi/startup must own the screen until we explicitly enter IDLE.
         lv_obj_add_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
 
-        ESP_LOGI(TAG, "M1 KOYODA idle layer created HIDDEN by default");
-        ESP_LOGI(TAG, "M1 UI rule: WIFI/STARTUP beats IDLE; no screen stacking");
+        ESP_LOGI(TAG, "M1.1 KOYODA idle layer created HIDDEN by default");
+        ESP_LOGI(TAG, "M1.1 UI rule: exclusive screen ownership; no Wi-Fi/Idle stacking");
     }
 
     virtual void SetKoyodaIdleVisible(bool visible) override {
@@ -256,12 +292,50 @@ public:
             return;
         }
 
+        lv_obj_t* screen = lv_screen_active();
+
         if (visible) {
+            /*
+             * True UI ownership, not merely visual stacking:
+             * stop the stock container/status bar from participating in idle
+             * rendering, force the root background black, then expose KOYODA.
+             */
+            if (container_ != nullptr) {
+                lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (status_bar_ != nullptr) {
+                lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
+
             lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
-            ESP_LOGI(TAG, "M1 UI -> KOYODA IDLE");
+            lv_obj_move_foreground(koyoda_idle_layer_);
+
+            ESP_LOGI(TAG, "M1.1 UI -> KOYODA IDLE (exclusive, black root)");
         } else {
+            /*
+             * Hide KOYODA before restoring the stock system UI. Wi-Fi and
+             * activation therefore never render mixed with the idle face.
+             */
             lv_obj_add_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
-            ESP_LOGI(TAG, "M1 UI -> XIAOZHI SYSTEM");
+
+            if (stock_screen_style_saved_) {
+                lv_obj_set_style_bg_color(
+                    screen, stock_screen_bg_color_, LV_PART_MAIN);
+                lv_obj_set_style_bg_opa(
+                    screen, stock_screen_bg_opa_, LV_PART_MAIN);
+            }
+
+            if (container_ != nullptr) {
+                lv_obj_clear_flag(container_, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (status_bar_ != nullptr) {
+                lv_obj_clear_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            ESP_LOGI(TAG, "M1.1 UI -> XIAOZHI SYSTEM (stock UI restored)");
         }
     }
 };

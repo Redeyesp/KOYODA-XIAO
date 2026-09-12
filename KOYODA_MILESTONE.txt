@@ -1,5 +1,7 @@
-KOYODA-XIAO M1
-Purpose: KOYODA idle visual shell over the working XiaoZhi core.
-M1 screen arbitration: STARTUP/WIFI/ACTIVATION/CONVERSATION use XiaoZhi UI;
-only kDeviceStateIdle shows the KOYODA full-screen idle face.
-Includes four invisible idle-screen touch zones for orientation verification.
+KOYODA-XIAO M1.1
+Purpose: close M1 display/touch baseline before animation work.
+Touch orientation confirmed correct on all four corners by user.
+M1.1 changes touch probe to immediate LV_EVENT_PRESSED logging.
+M1.1 fixes left/bottom white seam using black root + 2 px overscan parent.
+Idle now has exclusive screen ownership: stock XiaoZhi container/status are hidden.
+Wi-Fi/system state restores stock UI before rendering.

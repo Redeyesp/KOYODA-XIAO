@@ -3,7 +3,7 @@
 Separate integration repository for bringing the XiaoZhi AI core into KOYODA
 without risking the stable KOYODA repository.
 
-## Current milestone: M1 KOYODA idle shell
+## Current milestone: M1.1 idle cleanup
 
 **M1 now ports only the KOYODA idle face.**
 
@@ -113,3 +113,11 @@ It appears only after XiaoZhi reaches `kDeviceStateIdle`.
 
 This prevents the Wi-Fi setup page and KOYODA face from stacking.
 See `docs/KOYODA_M1_IDLE_SHELL.md`.
+
+
+## M1.1 cleanup
+
+Real-hardware M1 testing confirmed the 270° touch mapping is correct on all four
+corners. M1.1 changes the touch probe to immediate press logging and closes the
+remaining static-idle white edge using exclusive screen ownership and a black
+overscan surface.
