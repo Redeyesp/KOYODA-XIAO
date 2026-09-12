@@ -1,3 +1,5 @@
-KOYODA-XIAO M0.1
-Purpose: exact-board XiaoZhi build baseline.
-Do not port KOYODA UI until build + hardware baseline pass.
+KOYODA-XIAO M0.2
+Purpose: real-hardware baseline on Waveshare ESP32-S3 Touch AMOLED 1.75.
+M0.1 hardware boot confirmed by user; display was upside-down.
+M0.2 sets LVGL display rotation to 270 degrees and adds init diagnostics.
+No KOYODA face/UI port yet.

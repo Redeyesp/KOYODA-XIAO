@@ -3,9 +3,11 @@
 Separate integration repository for bringing the XiaoZhi AI core into KOYODA
 without risking the stable KOYODA repository.
 
-## M0.1 goal
+## Current milestone: M0.2 hardware baseline
 
 **Do not port the KOYODA face yet.**
+
+M0.1 has now booted on the real hardware. M0.2 fixes the physical display orientation to **270°** and adds hardware-init diagnostics.
 
 First prove that the current XiaoZhi core can build for the exact hardware:
 

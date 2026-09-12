@@ -14,11 +14,13 @@
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "==========================================");
-    ESP_LOGI(TAG, "KOYODA-XIAOZHI M0.1 BASELINE");
+    ESP_LOGI(TAG, "KOYODA-XIAO M0.2 HARDWARE BASELINE");
     ESP_LOGI(TAG, "XiaoZhi core + Waveshare 1.75 native board");
+    ESP_LOGI(TAG, "Display target orientation = 270 degrees");
     ESP_LOGI(TAG, "No KOYODA UI port yet");
     ESP_LOGI(TAG, "==========================================");
     // Initialize NVS flash for WiFi configuration
+    ESP_LOGI(TAG, "M0.2 APP STEP NVS init");
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "Erasing NVS flash to fix corruption");
@@ -26,9 +28,13 @@ extern "C" void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+    ESP_LOGI(TAG, "M0.2 APP PASS NVS init");
 
     // Initialize and run the application
+    ESP_LOGI(TAG, "M0.2 APP STEP Application::Initialize()");
     auto& app = Application::GetInstance();
     app.Initialize();
+    ESP_LOGI(TAG, "M0.2 APP PASS Application::Initialize()");
+    ESP_LOGI(TAG, "M0.2 APP entering Application::Run()");
     app.Run();  // This function runs the main event loop and never returns
 }

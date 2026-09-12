@@ -18,12 +18,39 @@
 #include <driver/spi_master.h>
 #include "esp_io_expander_tca9554.h"
 #include "settings.h"
+#include <esp_heap_caps.h>
 
 #include <esp_lcd_touch_cst9217.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 
 #define TAG "WaveshareEsp32s3TouchAMOLED1inch75"
+
+static void LogM02Memory(const char* stage) {
+    const size_t internal_free =
+        heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    const size_t internal_largest =
+        heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    const size_t dma_free =
+        heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    const size_t dma_largest =
+        heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    const size_t psram_free =
+        heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    const size_t psram_largest =
+        heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+
+    ESP_LOGI(
+        TAG,
+        "M0.2 MEM %-16s | internal=%u largest=%u | DMA=%u largest=%u | PSRAM=%u largest=%u",
+        stage,
+        (unsigned)internal_free,
+        (unsigned)internal_largest,
+        (unsigned)dma_free,
+        (unsigned)dma_largest,
+        (unsigned)psram_free,
+        (unsigned)psram_largest);
+}
 
 class Pmic : public Axp2101 {
 public:
@@ -116,6 +143,16 @@ public:
         SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
+
+        /*
+         * KOYODA-XIAO M0.2:
+         * Real-hardware M0.1 test showed the screen 180 degrees opposite the
+         * intended physical orientation.  Use the user-confirmed 270-degree
+         * LVGL orientation as the hardware baseline.
+         */
+        lv_display_set_rotation(display_, LV_DISPLAY_ROTATION_270);
+        ESP_LOGI(TAG, "M0.2 DISPLAY ROTATION = 270 degrees");
+
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES*  0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES*  0.1, 0);
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
@@ -235,6 +272,8 @@ private:
         io_config.spi_mode = 0;
         io_config.pclk_hz = 40 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
+        ESP_LOGI(TAG, "M0.2 LCD QSPI=40MHz queue_depth=%d",
+                 io_config.trans_queue_depth);
         io_config.lcd_cmd_bits = 32;
         io_config.lcd_param_bits = 8;
         io_config.flags.quad_mode = true;
@@ -312,20 +351,66 @@ private:
 
 public:
     WaveshareEsp32s3TouchAMOLED1inch75() : boot_button_(BOOT_BUTTON_GPIO) {
+        ESP_LOGI(TAG, "==========================================");
+        ESP_LOGI(TAG, "KOYODA-XIAO M0.2 HARDWARE BASELINE");
+        ESP_LOGI(TAG, "Display orientation: 270 degrees");
+        ESP_LOGI(TAG, "No KOYODA face/UI port yet");
+        ESP_LOGI(TAG, "==========================================");
+        LogM02Memory("board start");
+
+        ESP_LOGI(TAG, "M0.2 STEP 1/8 Power-save timer");
         InitializePowerSaveTimer();
+        ESP_LOGI(TAG, "M0.2 PASS 1/8 Power-save timer");
+
+        ESP_LOGI(TAG, "M0.2 STEP 2/8 I2C bus");
         InitializeCodecI2c();
+        ESP_LOGI(TAG, "M0.2 PASS 2/8 I2C bus");
+        LogM02Memory("after I2C");
+
 #if CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75
+        ESP_LOGI(TAG, "M0.2 STEP 3/8 TCA9554");
         InitializeTca9554();
+        ESP_LOGI(TAG, "M0.2 PASS 3/8 TCA9554");
 #endif
+
+        ESP_LOGI(TAG, "M0.2 STEP 4/8 AXP2101 PMU");
         InitializeAxp2101();
+        ESP_LOGI(TAG, "M0.2 PASS 4/8 AXP2101 PMU");
+
+        ESP_LOGI(TAG, "M0.2 STEP 5/8 SPI/QSPI bus");
         InitializeSpi();
+        ESP_LOGI(TAG, "M0.2 PASS 5/8 SPI/QSPI bus");
+        LogM02Memory("after SPI");
+
+        ESP_LOGI(TAG, "M0.2 STEP 6/8 CO5300 AMOLED");
         InitializeDisplay();
+        ESP_LOGI(TAG, "M0.2 PASS 6/8 CO5300 AMOLED");
+        LogM02Memory("after display");
+
+        ESP_LOGI(TAG, "M0.2 STEP 7/8 CST9217 touch");
         InitializeTouch();
+        ESP_LOGI(TAG, "M0.2 PASS 7/8 CST9217 touch");
+        LogM02Memory("after touch");
+
+        ESP_LOGI(TAG, "M0.2 STEP 8/8 Button + MCP tools");
         InitializeButtons();
         InitializeTools();
+        ESP_LOGI(TAG, "M0.2 PASS 8/8 Button + MCP tools");
+
+        ESP_LOGI(TAG, "M0.2 BOARD BASELINE INIT COMPLETE");
+        LogM02Memory("board ready");
     }
 
     virtual AudioCodec* GetAudioCodec() override {
+        static bool first_call = true;
+        if (first_call) {
+            ESP_LOGI(TAG, "M0.2 AUDIO STEP ES7210 mic + ES8311 speaker");
+            ESP_LOGI(TAG, "M0.2 AUDIO sample rate in=%d out=%d",
+                     AUDIO_INPUT_SAMPLE_RATE,
+                     AUDIO_OUTPUT_SAMPLE_RATE);
+            LogM02Memory("before audio");
+        }
+
         static BoxAudioCodec audio_codec(
             i2c_bus_, 
             AUDIO_INPUT_SAMPLE_RATE, 
@@ -339,6 +424,13 @@ public:
             AUDIO_CODEC_ES8311_ADDR, 
             AUDIO_CODEC_ES7210_ADDR, 
             AUDIO_INPUT_REFERENCE);
+
+        if (first_call) {
+            first_call = false;
+            ESP_LOGI(TAG, "M0.2 AUDIO PASS codec object created");
+            LogM02Memory("after audio");
+        }
+
         return &audio_codec;
     }
 
