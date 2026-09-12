@@ -118,6 +118,14 @@ private:
     lv_opa_t stock_screen_bg_opa_ = LV_OPA_COVER;
     bool stock_screen_style_saved_ = false;
 
+    /*
+     * The XiaoZhi root screen is scrollable. On the round AMOLED that caused
+     * the entire KOYODA face to move when the user dragged a finger, exposing
+     * the light stock background as a white seam.
+     */
+    bool stock_screen_scrollable_ = false;
+    lv_dir_t stock_screen_scroll_dir_ = LV_DIR_ALL;
+
     static void touch_zone_event_cb(lv_event_t* e) {
         /*
          * M1.1:
@@ -153,6 +161,11 @@ private:
         lv_obj_set_style_pad_all(zone, 0, 0);
 
         lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLL_ELASTIC);
+        lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+        lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+        lv_obj_set_scroll_dir(zone, LV_DIR_NONE);
         lv_obj_add_flag(zone, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(zone, touch_zone_event_cb, LV_EVENT_PRESSED,
                             const_cast<char*>(zone_name));
@@ -221,6 +234,15 @@ public:
             lv_obj_get_style_bg_opa(screen, LV_PART_MAIN);
         stock_screen_style_saved_ = true;
 
+        stock_screen_scrollable_ =
+            lv_obj_has_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+        stock_screen_scroll_dir_ = lv_obj_get_scroll_dir(screen);
+
+        ESP_LOGI(TAG,
+                 "M1.2 stock screen scrollable=%d dir=0x%x",
+                 stock_screen_scrollable_ ? 1 : 0,
+                 (unsigned)stock_screen_scroll_dir_);
+
         /*
          * M1 UI arbitration
          * -----------------
@@ -254,6 +276,11 @@ public:
         lv_obj_set_style_pad_all(koyoda_idle_layer_, 0, 0);
         lv_obj_set_style_radius(koyoda_idle_layer_, 0, 0);
         lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_SCROLL_ELASTIC);
+        lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+        lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+        lv_obj_set_scroll_dir(koyoda_idle_layer_, LV_DIR_NONE);
 
         lv_obj_t* idle_img = lv_image_create(koyoda_idle_layer_);
         lv_image_set_src(idle_img, &koyoda_idle_image);
@@ -281,8 +308,8 @@ public:
         // Critical: Wi-Fi/startup must own the screen until we explicitly enter IDLE.
         lv_obj_add_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
 
-        ESP_LOGI(TAG, "M1.1 KOYODA idle layer created HIDDEN by default");
-        ESP_LOGI(TAG, "M1.1 UI rule: exclusive screen ownership; no Wi-Fi/Idle stacking");
+        ESP_LOGI(TAG, "M1.2 KOYODA idle layer created HIDDEN by default");
+        ESP_LOGI(TAG, "M1.2 UI rule: exclusive ownership + root scroll lock");
     }
 
     virtual void SetKoyodaIdleVisible(bool visible) override {
@@ -296,10 +323,25 @@ public:
 
         if (visible) {
             /*
-             * True UI ownership, not merely visual stacking:
-             * stop the stock container/status bar from participating in idle
-             * rendering, force the root background black, then expose KOYODA.
+             * M1.2 root-scroll fix:
+             *
+             * The hardware video showed that touch was actually immediate:
+             * the entire face moved with the finger. That means the ROOT
+             * screen, not CST9217, was scrolling.
+             *
+             * Reset any inherited XiaoZhi scroll offset first, then make the
+             * root non-scrollable for the whole KOYODA-idle ownership period.
+             * This also prevents the white stock background from being exposed
+             * at the physical left/bottom edge.
              */
+            lv_obj_scroll_to(screen, 0, 0, LV_ANIM_OFF);
+            lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLL_ELASTIC);
+            lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+            lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+            lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+            lv_obj_set_scroll_dir(screen, LV_DIR_NONE);
+
             if (container_ != nullptr) {
                 lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
             }
@@ -313,7 +355,9 @@ public:
             lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(koyoda_idle_layer_);
 
-            ESP_LOGI(TAG, "M1.1 UI -> KOYODA IDLE (exclusive, black root)");
+            ESP_LOGI(TAG,
+                     "M1.2 UI -> KOYODA IDLE "
+                     "(root scroll locked, black root)");
         } else {
             /*
              * Hide KOYODA before restoring the stock system UI. Wi-Fi and
@@ -328,6 +372,17 @@ public:
                     screen, stock_screen_bg_opa_, LV_PART_MAIN);
             }
 
+            /*
+             * Return XiaoZhi's root scrolling policy for stock system/Wi-Fi
+             * pages. Do this only after KOYODA has been hidden.
+             */
+            lv_obj_set_scroll_dir(screen, stock_screen_scroll_dir_);
+            if (stock_screen_scrollable_) {
+                lv_obj_add_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+            } else {
+                lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+            }
+
             if (container_ != nullptr) {
                 lv_obj_clear_flag(container_, LV_OBJ_FLAG_HIDDEN);
             }
@@ -335,7 +390,7 @@ public:
                 lv_obj_clear_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
             }
 
-            ESP_LOGI(TAG, "M1.1 UI -> XIAOZHI SYSTEM (stock UI restored)");
+            ESP_LOGI(TAG, "M1.2 UI -> XIAOZHI SYSTEM (stock UI + scroll restored)");
         }
     }
 };
@@ -370,16 +425,24 @@ private:
     PowerSaveTimer* power_save_timer_;
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
-        power_save_timer_->OnEnterSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(true);
-            GetBacklight()->SetBrightness(20); });
-        power_save_timer_->OnExitSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(false);
-            GetBacklight()->RestoreBrightness(); });
-        power_save_timer_->OnShutdownRequest([this](){ 
-            pmic_->PowerOff(); });
-        power_save_timer_->SetEnabled(true);
+        /*
+         * KOYODA-XIAO M1.2
+         * ----------------
+         * Disable XiaoZhi's stock idle timer while we are integrating KOYODA.
+         *
+         * The upstream board used:
+         *   sleep/dim after 60 s
+         *   PMIC power-off after 300 s
+         *
+         * That conflicts with KOYODA's own planned sleep/idle behavior and
+         * makes hardware testing unnecessarily difficult. Keep the object so
+         * the board structure stays compatible, but do not start the timer.
+         */
+        power_save_timer_ = new PowerSaveTimer(-1, -1, -1);
+
+        ESP_LOGI(TAG,
+                 "M1.2 stock PowerSaveTimer DISABLED "
+                 "(no auto-dim, no auto-shutdown)");
     }
 
     void InitializeCodecI2c() {

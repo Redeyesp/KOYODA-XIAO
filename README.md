@@ -3,7 +3,7 @@
 Separate integration repository for bringing the XiaoZhi AI core into KOYODA
 without risking the stable KOYODA repository.
 
-## Current milestone: M1.1 idle cleanup
+## Current milestone: M1.2 root-scroll + power fix
 
 **M1 now ports only the KOYODA idle face.**
 
@@ -121,3 +121,11 @@ Real-hardware M1 testing confirmed the 270° touch mapping is correct on all fou
 corners. M1.1 changes the touch probe to immediate press logging and closes the
 remaining static-idle white edge using exclusive screen ownership and a black
 overscan surface.
+
+
+## M1.2 root-scroll + power fix
+
+Real-hardware video showed that touch is immediate, but the stock XiaoZhi root
+screen was scrolling the entire KOYODA idle layer. M1.2 locks root scrolling
+while KOYODA owns the screen and disables XiaoZhi's 60-second dim /
+300-second shutdown timer during integration.

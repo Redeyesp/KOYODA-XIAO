@@ -14,7 +14,7 @@
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "==========================================");
-    ESP_LOGI(TAG, "KOYODA-XIAO M1.1 IDLE CLEANUP");
+    ESP_LOGI(TAG, "KOYODA-XIAO M1.2 ROOT SCROLL + POWER FIX");
     ESP_LOGI(TAG, "XiaoZhi core + Waveshare 1.75 native board");
     ESP_LOGI(TAG, "Display target orientation = 270 degrees");
     ESP_LOGI(TAG, "KOYODA idle face enabled only in true IDLE state");

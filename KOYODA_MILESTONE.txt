@@ -1,7 +1,4 @@
-KOYODA-XIAO M1.1
-Purpose: close M1 display/touch baseline before animation work.
-Touch orientation confirmed correct on all four corners by user.
-M1.1 changes touch probe to immediate LV_EVENT_PRESSED logging.
-M1.1 fixes left/bottom white seam using black root + 2 px overscan parent.
-Idle now has exclusive screen ownership: stock XiaoZhi container/status are hidden.
-Wi-Fi/system state restores stock UI before rendering.
+KOYODA-XIAO M1.2
+Purpose: stop idle-face dragging/scrolling, eliminate exposed white edge,
+and disable XiaoZhi stock auto-dim/auto-shutdown during KOYODA integration.
+Touch mapping already confirmed correct at 270 degrees.
