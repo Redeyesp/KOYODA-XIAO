@@ -1,4 +1,5 @@
-KOYODA-XIAO M1.2
-Purpose: stop idle-face dragging/scrolling, eliminate exposed white edge,
-and disable XiaoZhi stock auto-dim/auto-shutdown during KOYODA integration.
-Touch mapping already confirmed correct at 270 degrees.
+KOYODA-XIAO M1.2b
+Root-cause fix for persistent white left/bottom edge.
+Generic SpiLcdDisplay paints panel white before LVGL; M1.2b repaints the
+physical 466x466 active area black after construction.
+M1.2 root-scroll lock and stock power-save disable are preserved.

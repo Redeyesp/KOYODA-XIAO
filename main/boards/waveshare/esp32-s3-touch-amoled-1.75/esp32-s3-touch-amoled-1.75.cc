@@ -546,6 +546,45 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new CustomLcdDisplay(panel_io, panel,
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+
+        /*
+         * KOYODA-XIAO M1.2b — WHITE EDGE ROOT-CAUSE FIX
+         * ------------------------------------------------
+         * SpiLcdDisplay's generic constructor intentionally clears the panel
+         * to 0xFFFF (white) before LVGL begins.
+         *
+         * On this CO5300 + 270-degree LVGL path, a thin physical edge can sit
+         * outside later LVGL refresh regions.  That leaves the constructor's
+         * original WHITE pixels visible at the left/bottom edge forever.
+         *
+         * Overscan/root-background changes cannot fix pixels LVGL never sends.
+         *
+         * Repaint the same physical active panel area BLACK here, after the
+         * generic constructor's white clear and before restoring brightness.
+         * LVGL can then draw normally; any untouched edge remains black and
+         * disappears into KOYODA's black background/bezel.
+         */
+        {
+            static uint16_t black_line[DISPLAY_WIDTH] = {0};
+
+            ESP_LOGI(TAG,
+                     "M1.2b clearing physical CO5300 active area BLACK "
+                     "after generic white clear");
+
+            for (int y = 0; y < DISPLAY_HEIGHT; ++y) {
+                ESP_ERROR_CHECK(
+                    esp_lcd_panel_draw_bitmap(
+                        panel,
+                        0,
+                        y,
+                        DISPLAY_WIDTH,
+                        y + 1,
+                        black_line));
+            }
+
+            ESP_LOGI(TAG, "M1.2b physical panel BLACK clear complete");
+        }
+
         backlight_ = new CustomBacklight(panel_io);
         backlight_->RestoreBrightness();
     }

@@ -3,7 +3,7 @@
 Separate integration repository for bringing the XiaoZhi AI core into KOYODA
 without risking the stable KOYODA repository.
 
-## Current milestone: M1.2 root-scroll + power fix
+## Current milestone: M1.2b white-edge root-cause fix
 
 **M1 now ports only the KOYODA idle face.**
 
@@ -129,3 +129,11 @@ Real-hardware video showed that touch is immediate, but the stock XiaoZhi root
 screen was scrolling the entire KOYODA idle layer. M1.2 locks root scrolling
 while KOYODA owns the screen and disables XiaoZhi's 60-second dim /
 300-second shutdown timer during integration.
+
+
+## M1.2b white-edge root cause
+
+The persistent white left/bottom seam was traced below the KOYODA LVGL layer:
+XiaoZhi's generic `SpiLcdDisplay` constructor initially paints the physical
+panel white. M1.2b repaints the exact Waveshare 1.75 active area black after
+that constructor, so any edge not later refreshed by LVGL cannot remain white.
