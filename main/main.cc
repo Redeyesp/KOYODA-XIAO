@@ -14,10 +14,10 @@
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "==========================================");
-    ESP_LOGI(TAG, "KOYODA-XIAO M0.2 HARDWARE BASELINE");
+    ESP_LOGI(TAG, "KOYODA-XIAO M1 IDLE SHELL");
     ESP_LOGI(TAG, "XiaoZhi core + Waveshare 1.75 native board");
     ESP_LOGI(TAG, "Display target orientation = 270 degrees");
-    ESP_LOGI(TAG, "No KOYODA UI port yet");
+    ESP_LOGI(TAG, "KOYODA idle face enabled only in true IDLE state");
     ESP_LOGI(TAG, "==========================================");
     // Initialize NVS flash for WiFi configuration
     ESP_LOGI(TAG, "M0.2 APP STEP NVS init");

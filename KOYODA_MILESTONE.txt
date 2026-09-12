@@ -1,5 +1,5 @@
-KOYODA-XIAO M0.2
-Purpose: real-hardware baseline on Waveshare ESP32-S3 Touch AMOLED 1.75.
-M0.1 hardware boot confirmed by user; display was upside-down.
-M0.2 sets LVGL display rotation to 270 degrees and adds init diagnostics.
-No KOYODA face/UI port yet.
+KOYODA-XIAO M1
+Purpose: KOYODA idle visual shell over the working XiaoZhi core.
+M1 screen arbitration: STARTUP/WIFI/ACTIVATION/CONVERSATION use XiaoZhi UI;
+only kDeviceStateIdle shows the KOYODA full-screen idle face.
+Includes four invisible idle-screen touch zones for orientation verification.

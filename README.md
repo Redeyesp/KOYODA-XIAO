@@ -3,9 +3,9 @@
 Separate integration repository for bringing the XiaoZhi AI core into KOYODA
 without risking the stable KOYODA repository.
 
-## Current milestone: M0.2 hardware baseline
+## Current milestone: M1 KOYODA idle shell
 
-**Do not port the KOYODA face yet.**
+**M1 now ports only the KOYODA idle face.**
 
 M0.1 has now booted on the real hardware. M0.2 fixes the physical display orientation to **270°** and adds hardware-init diagnostics.
 
@@ -104,3 +104,12 @@ The original upstream README is preserved as:
 `UPSTREAM_XIAOZHI_README.md`
 
 The upstream project is MIT licensed; the original `LICENSE` is retained.
+
+
+## M1 screen arbitration
+
+The KOYODA idle face is **not** displayed during startup or Wi-Fi provisioning.
+It appears only after XiaoZhi reaches `kDeviceStateIdle`.
+
+This prevents the Wi-Fi setup page and KOYODA face from stacking.
+See `docs/KOYODA_M1_IDLE_SHELL.md`.

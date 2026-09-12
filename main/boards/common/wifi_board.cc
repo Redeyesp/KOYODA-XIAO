@@ -168,6 +168,13 @@ void WifiBoard::OnWifiConnectTimeout(void* arg) {
 }
 
 void WifiBoard::StartWifiConfigMode() {
+    /*
+     * KOYODA-XIAO M1:
+     * Wi-Fi provisioning owns the screen. Hide the KOYODA idle layer BEFORE
+     * changing state or scheduling the configuration alert.
+     */
+    GetDisplay()->SetKoyodaIdleVisible(false);
+
     in_config_mode_ = true;
     // Transition to wifi configuring state
     Application::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
@@ -194,6 +201,9 @@ void WifiBoard::StartWifiConfigMode() {
 
 void WifiBoard::EnterWifiConfigMode() {
     ESP_LOGI(TAG, "EnterWifiConfigMode called");
+
+    // Hide KOYODA immediately; do not wait for the delayed Wi-Fi transition.
+    GetDisplay()->SetKoyodaIdleVisible(false);
     GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
 
     auto& app = Application::GetInstance();

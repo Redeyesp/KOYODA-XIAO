@@ -11,6 +11,7 @@
 #include "power_save_timer.h"
 #include "axp2101.h"
 #include "i2c_device.h"
+#include "koyoda_idle_image.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -106,6 +107,43 @@ static const co5300_lcd_init_cmd_t vendor_specific_init[] = {
 
 // 在waveshare_amoled_1_75类之前添加新的显示类
 class CustomLcdDisplay : public SpiLcdDisplay {
+private:
+    lv_obj_t* koyoda_idle_layer_ = nullptr;
+
+    static void touch_zone_event_cb(lv_event_t* e) {
+        if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+            return;
+        }
+
+        const char* zone =
+            static_cast<const char*>(lv_event_get_user_data(e));
+        ESP_LOGI(TAG, "M1 TOUCH logical-zone=%s", zone ? zone : "UNKNOWN");
+    }
+
+    static lv_obj_t* create_touch_zone(lv_obj_t* parent,
+                                       lv_coord_t x,
+                                       lv_coord_t y,
+                                       lv_coord_t w,
+                                       lv_coord_t h,
+                                       const char* zone_name) {
+        lv_obj_t* zone = lv_obj_create(parent);
+        lv_obj_set_pos(zone, x, y);
+        lv_obj_set_size(zone, w, h);
+
+        // Fully transparent: this exists only for touch-orientation testing.
+        lv_obj_set_style_bg_opa(zone, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(zone, 0, 0);
+        lv_obj_set_style_outline_width(zone, 0, 0);
+        lv_obj_set_style_shadow_width(zone, 0, 0);
+        lv_obj_set_style_pad_all(zone, 0, 0);
+
+        lv_obj_clear_flag(zone, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(zone, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(zone, touch_zone_event_cb, LV_EVENT_CLICKED,
+                            const_cast<char*>(zone_name));
+        return zone;
+    }
+
 public:
     static void rounder_event_cb(lv_event_t* e) {
         lv_area_t* area = (lv_area_t* )lv_event_get_param(e);
@@ -156,6 +194,75 @@ public:
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES*  0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES*  0.1, 0);
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
+
+        /*
+         * M1 UI arbitration
+         * -----------------
+         * KOYODA idle is a dedicated full-screen layer created above XiaoZhi's
+         * stock UI, but it starts HIDDEN. It is shown only when the application
+         * state is kDeviceStateIdle.
+         *
+         * Therefore:
+         *   STARTING / WIFI CONFIG / ACTIVATING -> XiaoZhi UI only
+         *   IDLE                                -> KOYODA face only
+         *   LISTENING / SPEAKING               -> XiaoZhi UI only (M1)
+         *
+         * This prevents the Wi-Fi page and KOYODA face from stacking.
+         */
+        lv_obj_t* screen = lv_screen_active();
+        koyoda_idle_layer_ = lv_obj_create(screen);
+        lv_obj_set_pos(koyoda_idle_layer_, 0, 0);
+        lv_obj_set_size(koyoda_idle_layer_, 466, 466);
+        lv_obj_set_style_bg_color(koyoda_idle_layer_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(koyoda_idle_layer_, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(koyoda_idle_layer_, 0, 0);
+        lv_obj_set_style_outline_width(koyoda_idle_layer_, 0, 0);
+        lv_obj_set_style_shadow_width(koyoda_idle_layer_, 0, 0);
+        lv_obj_set_style_pad_all(koyoda_idle_layer_, 0, 0);
+        lv_obj_set_style_radius(koyoda_idle_layer_, 0, 0);
+        lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t* idle_img = lv_image_create(koyoda_idle_layer_);
+        lv_image_set_src(idle_img, &koyoda_idle_image);
+        lv_obj_set_pos(idle_img, 0, 0);
+        lv_obj_clear_flag(idle_img, LV_OBJ_FLAG_SCROLLABLE);
+
+        /*
+         * M1 touch-orientation probe:
+         * Four invisible corner zones are active only while the KOYODA idle
+         * layer is visible.  Tap a physical corner and inspect serial:
+         *
+         *   M1 TOUCH logical-zone=TOP_LEFT
+         *
+         * This finally gives us a deterministic way to verify touch mapping
+         * after the 270-degree display rotation.
+         */
+        create_touch_zone(koyoda_idle_layer_,   0,   0, 110, 110, "TOP_LEFT");
+        create_touch_zone(koyoda_idle_layer_, 356,   0, 110, 110, "TOP_RIGHT");
+        create_touch_zone(koyoda_idle_layer_,   0, 356, 110, 110, "BOTTOM_LEFT");
+        create_touch_zone(koyoda_idle_layer_, 356, 356, 110, 110, "BOTTOM_RIGHT");
+
+        // Critical: Wi-Fi/startup must own the screen until we explicitly enter IDLE.
+        lv_obj_add_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
+
+        ESP_LOGI(TAG, "M1 KOYODA idle layer created HIDDEN by default");
+        ESP_LOGI(TAG, "M1 UI rule: WIFI/STARTUP beats IDLE; no screen stacking");
+    }
+
+    virtual void SetKoyodaIdleVisible(bool visible) override {
+        DisplayLockGuard lock(this);
+
+        if (koyoda_idle_layer_ == nullptr) {
+            return;
+        }
+
+        if (visible) {
+            lv_obj_clear_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGI(TAG, "M1 UI -> KOYODA IDLE");
+        } else {
+            lv_obj_add_flag(koyoda_idle_layer_, LV_OBJ_FLAG_HIDDEN);
+            ESP_LOGI(TAG, "M1 UI -> XIAOZHI SYSTEM");
+        }
     }
 };
 

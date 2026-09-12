@@ -738,6 +738,10 @@ void Application::Alert(const char* status, const char* message, const char* emo
                         const std::string_view& sound) {
     ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
     auto display = Board::GetInstance().GetDisplay();
+
+    // M1: critical/system alerts take temporary ownership of the screen.
+    display->SetKoyodaIdleVisible(false);
+
     display->SetStatus(status);
     display->SetEmotion(emotion);
     display->SetChatMessage("system", message);
@@ -752,6 +756,7 @@ void Application::DismissAlert() {
         display->SetStatus(Lang::Strings::STANDBY);
         display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
+        display->SetKoyodaIdleVisible(true);
     }
 }
 
@@ -987,6 +992,16 @@ void Application::HandleStateChangedEvent() {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
+
+    /*
+     * M1 screen ownership:
+     * KOYODA owns only the true IDLE state.
+     * Every system/network/conversation state uses XiaoZhi's stock UI.
+     *
+     * This is deliberately decided BEFORE the existing state-specific UI
+     * updates so Wi-Fi/config/activation can never be covered by the idle face.
+     */
+    display->SetKoyodaIdleVisible(new_state == kDeviceStateIdle);
 
     switch (new_state) {
         case kDeviceStateUnknown:
